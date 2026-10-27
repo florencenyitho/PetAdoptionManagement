@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    This file is generated and managed by NetBeans IDE.
+    To reconfigure it, open the project in NetBeans and use
+    Project Properties > Libraries.
+-->
+<project name="PetAdoptionManagementSystem-impl" basedir="..">
+    <import file="build.xml"/>
+</project>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NetBeans-compatible Ant build file -->
+<project name="PetAdoptionManagementSystem" default="run" basedir=".">
+    <description>Pet Adoption Management System (SQLite)</description>
+
+    <property name="src.dir"    value="src"/>
+    <property name="build.dir"  value="build"/>
+    <property name="dist.dir"   value="dist"/>
+    <property name="lib.dir"    value="lib"/>
+    <property name="main.class" value="petadoptionmanagementsystem.PetAdoptionManagementSystem"/>
+
+    <path id="classpath">
+        <fileset dir="${lib.dir}" includes="*.jar"/>
+    </path>
+
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+    </target>
+
+    <target name="compile" depends="clean">
+        <mkdir dir="${build.dir}/classes"/>
+        <javac srcdir="${src.dir}" destdir="${build.dir}/classes"
+               includeantruntime="false" release="17">
+            <classpath refid="classpath"/>
+        </javac>
+    </target>
+
+    <target name="run" depends="compile">
+        <java classname="${main.class}" fork="true">
+            <jvmarg value="--enable-native-access=ALL-UNNAMED"/>
+            <classpath>
+                <path refid="classpath"/>
+                <pathelement path="${build.dir}/classes"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="jar" depends="compile">
+        <mkdir dir="${dist.dir}"/>
+        <jar destfile="${dist.dir}/PetAdoptionManagementSystem.jar"
+             basedir="${build.dir}/classes">
+            <manifest>
+                <attribute name="Main-Class" value="${main.class}"/>
+                <attribute name="Class-Path" value="sqlite-jdbc.jar"/>
+            </manifest>
+        </jar>
+    </target>
+</project>
