@@ -20,7 +20,6 @@ public class PetsPanel extends JPanel {
     private static final Color C_BLUE   = new Color(41,  128, 185);
     private static final Color C_RED    = new Color(192,  57,  43);
     private static final Color C_BG     = new Color(245, 248, 252);
-    private static final Color C_CARD   = Color.WHITE;
     private static final Color C_BORDER = new Color(210, 220, 235);
 
     private final PetDAO petDAO = new PetDAO();
@@ -28,15 +27,14 @@ public class PetsPanel extends JPanel {
     private DefaultTableModel tableModel;
     private JTable table;
 
-    private final JTextField tfName        = styledField("e.g. Buddy",    18);
-    private final JTextField tfSpecies     = styledField("e.g. Dog",      14);
-    private final JTextField tfBreed       = styledField("e.g. Labrador", 14);
-    private final JTextField tfAge         = styledField("0",              5);
-    private final JComboBox<String> cbGender =
-            new JComboBox<>(new String[]{"Male", "Female", "Unknown"});
-    private final JTextArea taDescription  = new JTextArea(3, 24);
-    private final JTextField tfSearch      = styledField("Search by name, species or breed…", 22);
-    private final JCheckBox cbAvailable    = new JCheckBox("Available for adoption", true);
+    private final JTextField        tfName        = styledField("e.g. Buddy",    18);
+    private final JTextField        tfSpecies     = styledField("e.g. Dog",      14);
+    private final JTextField        tfBreed       = styledField("e.g. Labrador", 14);
+    private final JTextField        tfAge         = styledField("0",               5);
+    private final JComboBox<String> cbGender      = new JComboBox<>(new String[]{"Male", "Female", "Unknown"});
+    private final JTextArea         taDescription = new JTextArea(3, 24);
+    private final JTextField        tfSearch      = styledField("Search by name, species or breed…", 22);
+    private final JCheckBox         cbAvailable   = new JCheckBox("Available for adoption", true);
 
     private int selectedPetId = -1;
 
@@ -57,12 +55,11 @@ public class PetsPanel extends JPanel {
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         bar.setBackground(C_BG);
 
+        // Placeholder only — no leading icon (FlatLaf icon requires an ImageIcon, not emoji)
         tfSearch.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,
                                    "Search by name, species or breed…");
-        tfSearch.putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON,
-                                   icon("🔍"));
 
-        JButton btnSearch  = actionButton("Search",   C_BLUE);
+        JButton btnSearch  = actionButton("🔍 Search",  C_BLUE);
         JButton btnShowAll = actionButton("Show All", new Color(100, 116, 139));
 
         bar.add(new JLabel(
@@ -104,7 +101,7 @@ public class PetsPanel extends JPanel {
         header.setForeground(Color.WHITE);
         header.setPreferredSize(new Dimension(0, 34));
 
-        // Status column renderer (coloured badge)
+        // Status column — coloured badge renderer
         table.getColumnModel().getColumn(6).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable t, Object val,
@@ -162,28 +159,30 @@ public class PetsPanel extends JPanel {
         g.insets = new Insets(5, 8, 5, 8);
         g.anchor = GridBagConstraints.WEST;
 
+        // Description — plain JTextArea inside a scrollpane (no FlatLaf arc style on JTextArea)
         taDescription.setRows(3);
         taDescription.setLineWrap(true);
         taDescription.setWrapStyleWord(true);
-        taDescription.putClientProperty(FlatClientProperties.STYLE,
-                "arc: 6; border: 1,1,1,1,#d2dce8");
+        taDescription.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         JScrollPane descScroll = new JScrollPane(taDescription);
         descScroll.setBorder(BorderFactory.createLineBorder(C_BORDER));
 
-        addRow(fields, g, 0, htmlLabel("Name *"),    tfName,
-                           htmlLabel("Species *"),   tfSpecies);
-        addRow(fields, g, 1, htmlLabel("Breed"),     tfBreed,
-                           htmlLabel("Age (yrs) *"), tfAge);
-        addRow(fields, g, 2, htmlLabel("Gender"),    cbGender,
-                           cbAvailable,              new JLabel());
-        g.gridx = 0; g.gridy = 3; fields.add(htmlLabel("Description"), g);
+        addRow(fields, g, 0, htmlLabel("Name *"),     tfName,
+                            htmlLabel("Species *"),   tfSpecies);
+        addRow(fields, g, 1, htmlLabel("Breed"),      tfBreed,
+                            htmlLabel("Age (yrs) *"), tfAge);
+        addRow(fields, g, 2, htmlLabel("Gender"),     cbGender,
+                            cbAvailable,              new JLabel());
+
+        g.gridx = 0; g.gridy = 3;
+        fields.add(htmlLabel("Description"), g);
         g.gridx = 1; g.gridwidth = 3; g.fill = GridBagConstraints.HORIZONTAL;
         fields.add(descScroll, g);
         g.gridwidth = 1; g.fill = GridBagConstraints.NONE;
 
         card.add(fields, BorderLayout.CENTER);
 
-        // Buttons
+        // Action buttons
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         btnRow.setOpaque(false);
         JButton btnAdd    = actionButton("➕  Register Pet", C_GREEN);
@@ -213,7 +212,7 @@ public class PetsPanel extends JPanel {
             for (Pet p : pets) {
                 tableModel.addRow(new Object[]{
                     p.getPetId(), p.getName(), p.getSpecies(), p.getBreed(),
-                    p.getAge(), p.getGender(),
+                    p.getAge(),   p.getGender(),
                     p.isAvailable() ? "Available" : "Adopted",
                     p.getDateAdded()
                 });
@@ -226,7 +225,8 @@ public class PetsPanel extends JPanel {
         try {
             if (petDAO.addPet(buildPetFromForm())) {
                 showSuccess("Pet registered successfully!");
-                clearForm(); loadPets(null);
+                clearForm();
+                loadPets(null);
             }
         } catch (SQLException ex) { showError(ex); }
     }
@@ -235,12 +235,13 @@ public class PetsPanel extends JPanel {
         if (selectedPetId < 0) { showWarn("Select a pet to update."); return; }
         if (!validateForm()) return;
         Pet p = buildPetFromForm();
-        p.setPetId(selectedPetId);
+        p.setPetId    (selectedPetId);
         p.setAvailable(cbAvailable.isSelected());
         try {
             if (petDAO.updatePet(p)) {
                 showSuccess("Pet updated successfully!");
-                clearForm(); loadPets(null);
+                clearForm();
+                loadPets(null);
             }
         } catch (SQLException ex) { showError(ex); }
     }
@@ -254,7 +255,8 @@ public class PetsPanel extends JPanel {
         try {
             if (petDAO.deletePet(selectedPetId)) {
                 showSuccess("Pet deleted.");
-                clearForm(); loadPets(null);
+                clearForm();
+                loadPets(null);
             }
         } catch (SQLException ex) { showError(ex); }
     }
@@ -265,11 +267,11 @@ public class PetsPanel extends JPanel {
         int row = table.getSelectedRow();
         if (row < 0) return;
         selectedPetId = (int) tableModel.getValueAt(row, 0);
-        tfName  .setText((String) tableModel.getValueAt(row, 1));
-        tfSpecies.setText((String) tableModel.getValueAt(row, 2));
-        tfBreed .setText((String) tableModel.getValueAt(row, 3));
-        tfAge   .setText(String.valueOf(tableModel.getValueAt(row, 4)));
-        cbGender.setSelectedItem(tableModel.getValueAt(row, 5));
+        tfName    .setText((String) tableModel.getValueAt(row, 1));
+        tfSpecies .setText((String) tableModel.getValueAt(row, 2));
+        tfBreed   .setText((String) tableModel.getValueAt(row, 3));
+        tfAge     .setText(String.valueOf(tableModel.getValueAt(row, 4)));
+        cbGender  .setSelectedItem(tableModel.getValueAt(row, 5));
         cbAvailable.setSelected("Available".equals(tableModel.getValueAt(row, 6)));
         try {
             Pet p = petDAO.getPetById(selectedPetId);
@@ -279,9 +281,14 @@ public class PetsPanel extends JPanel {
 
     private void clearForm() {
         selectedPetId = -1;
-        tfName.setText(""); tfSpecies.setText(""); tfBreed.setText(""); tfAge.setText("");
-        taDescription.setText(""); cbGender.setSelectedIndex(0); cbAvailable.setSelected(true);
-        table.clearSelection();
+        tfName       .setText("");
+        tfSpecies    .setText("");
+        tfBreed      .setText("");
+        tfAge        .setText("");
+        taDescription.setText("");
+        cbGender     .setSelectedIndex(0);
+        cbAvailable  .setSelected(true);
+        table        .clearSelection();
     }
 
     private Pet buildPetFromForm() {
@@ -297,23 +304,24 @@ public class PetsPanel extends JPanel {
     }
 
     private boolean validateForm() {
-        if (tfName.getText().trim().isEmpty())    { showWarn("Pet name is required.");              return false; }
-        if (tfSpecies.getText().trim().isEmpty())  { showWarn("Species is required.");               return false; }
+        if (tfName.getText().trim().isEmpty())   { showWarn("Pet name is required.");          return false; }
+        if (tfSpecies.getText().trim().isEmpty()) { showWarn("Species is required.");           return false; }
         try {
             if (Integer.parseInt(tfAge.getText().trim()) < 0) throw new NumberFormatException();
-        } catch (NumberFormatException e)          { showWarn("Age must be a non-negative number."); return false; }
+        } catch (NumberFormatException e)         { showWarn("Age must be a non-negative number."); return false; }
         return true;
     }
 
     private void addRow(JPanel p, GridBagConstraints g, int row,
-                        JComponent l1, JComponent f1, JComponent l2, JComponent f2) {
+                        JComponent l1, JComponent f1,
+                        JComponent l2, JComponent f2) {
         g.gridx = 0; g.gridy = row; p.add(l1, g);
         g.gridx = 1;                p.add(f1, g);
         g.gridx = 2;                p.add(l2, g);
         g.gridx = 3;                p.add(f2, g);
     }
 
-    // ── Static UI factories ──────────────────────────────────────────────────
+    // ── Static UI factories (shared by other panels) ─────────────────────────
 
     static JTextField styledField(String placeholder, int cols) {
         JTextField tf = new JTextField(cols);
@@ -334,7 +342,8 @@ public class PetsPanel extends JPanel {
     }
 
     static JLabel htmlLabel(String text) {
-        return new JLabel("<html><span style='color:#444; font-size:12px;'>" + text + "</span></html>");
+        return new JLabel(
+            "<html><span style='color:#444; font-size:12px;'>" + text + "</span></html>");
     }
 
     static JPanel card() {
@@ -343,8 +352,7 @@ public class PetsPanel extends JPanel {
         return p;
     }
 
-    /** Dummy icon label trick — FlatLaf leading icon needs an Icon, not emoji string */
-    private Icon icon(String emoji) { return null; }
+    // ── Dialogs ──────────────────────────────────────────────────────────────
 
     private void showSuccess(String msg) {
         JOptionPane.showMessageDialog(this,
