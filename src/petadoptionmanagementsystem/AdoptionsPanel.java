@@ -1,104 +1,163 @@
 package petadoptionmanagementsystem;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Panel for recording adoptions and viewing adoption history.
+ * Adoptions tab — record adoptions and view history.
  */
 public class AdoptionsPanel extends JPanel {
+
+    private static final Color C_GREEN  = new Color(39,  174, 96);
+    private static final Color C_BLUE   = new Color(41,  128, 185);
+    private static final Color C_BG     = new Color(245, 248, 252);
+    private static final Color C_BORDER = new Color(210, 220, 235);
 
     private final AdoptionDAO adoptionDAO = new AdoptionDAO();
     private final PetDAO      petDAO      = new PetDAO();
     private final AdopterDAO  adopterDAO  = new AdopterDAO();
 
-    // History table
-    private final DefaultTableModel tableModel;
-    private final JTable table;
+    private DefaultTableModel tableModel;
+    private JTable table;
 
-    // Record-adoption form
-    private final JComboBox<Pet>     cbPet      = new JComboBox<>();
-    private final JComboBox<Adopter> cbAdopter  = new JComboBox<>();
-    private final JTextField         tfDate     = new JTextField(12);
-    private final JTextArea          taNotes    = new JTextArea(3, 25);
-
-    // Filter
-    private final JTextField tfFrom = new JTextField(10);
-    private final JTextField tfTo   = new JTextField(10);
+    private final JComboBox<Pet>     cbPet     = new JComboBox<>();
+    private final JComboBox<Adopter> cbAdopter = new JComboBox<>();
+    private final JTextField         tfDate    = PetsPanel.styledField("yyyy-MM-dd", 12);
+    private final JTextArea          taNotes   = new JTextArea(2, 24);
+    private final JTextField         tfFrom    = PetsPanel.styledField("2026-01-01", 10);
+    private final JTextField         tfTo      = PetsPanel.styledField("2026-12-31", 10);
 
     public AdoptionsPanel() {
-        setLayout(new BorderLayout(8, 8));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout(0, 0));
+        setBackground(C_BG);
 
-        // ── Filter bar ───────────────────────────────────────────────────────
-        JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        filterBar.add(new JLabel("From (yyyy-MM-dd):"));
-        filterBar.add(tfFrom);
-        filterBar.add(new JLabel("To:"));
-        filterBar.add(tfTo);
-        JButton btnFilter  = new JButton("🔍 Filter");
-        JButton btnShowAll = new JButton("Show All");
-        filterBar.add(btnFilter);
-        filterBar.add(btnShowAll);
-        add(filterBar, BorderLayout.NORTH);
+        add(buildFilterBar(),  BorderLayout.NORTH);
+        add(buildTableCard(),  BorderLayout.CENTER);
+        add(buildFormCard(),   BorderLayout.SOUTH);
 
-        // ── History table ────────────────────────────────────────────────────
+        loadHistory(null, null);
+        refreshDropdowns();
+    }
+
+    // ── Filter bar ───────────────────────────────────────────────────────────
+
+    private JPanel buildFilterBar() {
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        bar.setBackground(C_BG);
+
+        JButton btnFilter  = PetsPanel.actionButton("🔍  Filter", C_BLUE);
+        JButton btnShowAll = PetsPanel.actionButton("Show All",   new Color(100, 116, 139));
+
+        bar.add(new JLabel(
+            "<html><b style='color:#1e5aa0; font-size:13px;'>🤝 Adoption History</b></html>"));
+        bar.add(Box.createHorizontalStrut(20));
+        bar.add(PetsPanel.htmlLabel("From:"));
+        bar.add(tfFrom);
+        bar.add(PetsPanel.htmlLabel("To:"));
+        bar.add(tfTo);
+        bar.add(btnFilter);
+        bar.add(btnShowAll);
+
+        btnFilter .addActionListener(e -> loadHistory(tfFrom.getText().trim(), tfTo.getText().trim()));
+        btnShowAll.addActionListener(e -> { tfFrom.setText(""); tfTo.setText(""); loadHistory(null, null); });
+        return bar;
+    }
+
+    // ── Table card ───────────────────────────────────────────────────────────
+
+    private JPanel buildTableCard() {
         String[] cols = {"ID", "Pet", "Adopter", "Phone", "Adoption Date", "Notes"};
         tableModel = new DefaultTableModel(cols, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
         table = new JTable(tableModel);
-        table.setRowHeight(24);
-        table.getColumn("ID").setMaxWidth(50);
-        table.getColumn("Phone").setMaxWidth(110);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        table.setRowHeight(30);
+        table.setShowGrid(false);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setSelectionBackground(new Color(210, 234, 255));
+        table.setSelectionForeground(Color.BLACK);
+        table.getColumnModel().getColumn(0).setMaxWidth(50);
+        table.getColumnModel().getColumn(3).setMaxWidth(120);
+        table.getColumnModel().getColumn(4).setMaxWidth(120);
 
-        // ── Record-adoption form ─────────────────────────────────────────────
-        JPanel formPanel = new JPanel(new BorderLayout());
-        formPanel.setBorder(BorderFactory.createTitledBorder("Record New Adoption"));
+        JTableHeader header = table.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setBackground(new Color(30, 90, 160));
+        header.setForeground(Color.WHITE);
+        header.setPreferredSize(new Dimension(0, 34));
 
-        JPanel fields = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(4, 6, 4, 6);
-        gbc.anchor = GridBagConstraints.WEST;
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
 
-        addField(fields, gbc, 0, "Pet (available):", cbPet);
-        addField(fields, gbc, 1, "Adopter:",         cbAdopter);
+        JPanel card = PetsPanel.card();
+        card.setLayout(new BorderLayout());
+        card.add(scroll);
+        card.setBorder(new EmptyBorder(0, 10, 0, 10));
+        return card;
+    }
+
+    // ── Form card ────────────────────────────────────────────────────────────
+
+    private JPanel buildFormCard() {
+        JPanel card = PetsPanel.card();
+        card.setLayout(new BorderLayout(0, 6));
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, C_BORDER),
+            new EmptyBorder(12, 16, 12, 16)
+        ));
+
+        card.add(new JLabel(
+            "<html><span style='font-size:13px; font-weight:bold; color:#1e5aa0;'>"
+            + "Record New Adoption</span>&nbsp;"
+            + "<span style='font-size:11px; color:#888;'>"
+            + "Pet will be marked unavailable automatically</span></html>"),
+            BorderLayout.NORTH);
 
         tfDate.setText(LocalDate.now().toString());
-        addField(fields, gbc, 2, "Adoption Date*:",  tfDate);
 
-        gbc.gridx = 0; gbc.gridy = 3; fields.add(new JLabel("Notes:"), gbc);
-        gbc.gridx = 1; gbc.gridwidth = 3;
-        fields.add(new JScrollPane(taNotes), gbc);
-        gbc.gridwidth = 1;
+        JPanel fields = new JPanel(new GridBagLayout());
+        fields.setOpaque(false);
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(5, 8, 5, 8);
+        g.anchor = GridBagConstraints.WEST;
 
-        formPanel.add(fields, BorderLayout.CENTER);
+        taNotes.setLineWrap(true); taNotes.setWrapStyleWord(true);
+        JScrollPane notesScroll = new JScrollPane(taNotes);
+        notesScroll.setBorder(BorderFactory.createLineBorder(C_BORDER));
 
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
-        JButton btnRecord  = new JButton("🤝 Record Adoption");
-        JButton btnRefresh = new JButton("🔄 Refresh Lists");
-        styleButton(btnRecord,  new Color(39, 174, 96));
-        styleButton(btnRefresh, new Color(100, 100, 100));
-        btnPanel.add(btnRecord);
-        btnPanel.add(btnRefresh);
-        formPanel.add(btnPanel, BorderLayout.SOUTH);
+        g.gridx = 0; g.gridy = 0; fields.add(PetsPanel.htmlLabel("Pet (available):"), g);
+        g.gridx = 1;               fields.add(cbPet, g);
+        g.gridx = 2;               fields.add(PetsPanel.htmlLabel("Adopter:"), g);
+        g.gridx = 3;               fields.add(cbAdopter, g);
 
-        add(formPanel, BorderLayout.SOUTH);
+        g.gridx = 0; g.gridy = 1; fields.add(PetsPanel.htmlLabel("Adoption Date *:"), g);
+        g.gridx = 1;               fields.add(tfDate, g);
 
-        // ── Initial load ─────────────────────────────────────────────────────
-        loadHistory(null, null);
-        refreshDropdowns();
+        g.gridx = 0; g.gridy = 2; fields.add(PetsPanel.htmlLabel("Notes:"), g);
+        g.gridx = 1; g.gridwidth = 3; g.fill = GridBagConstraints.HORIZONTAL;
+        fields.add(notesScroll, g);
+        g.gridwidth = 1; g.fill = GridBagConstraints.NONE;
 
-        // ── Listeners ────────────────────────────────────────────────────────
-        btnFilter .addActionListener(e -> loadHistory(tfFrom.getText().trim(), tfTo.getText().trim()));
-        btnShowAll.addActionListener(e -> { tfFrom.setText(""); tfTo.setText(""); loadHistory(null, null); });
+        card.add(fields, BorderLayout.CENTER);
+
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        btnRow.setOpaque(false);
+        JButton btnRecord  = PetsPanel.actionButton("🤝  Record Adoption", C_GREEN);
+        JButton btnRefresh = PetsPanel.actionButton("🔄  Refresh Lists",   new Color(100, 116, 139));
+        btnRow.add(btnRefresh);
+        btnRow.add(btnRecord);
+        card.add(btnRow, BorderLayout.SOUTH);
+
         btnRecord .addActionListener(e -> recordAdoption());
         btnRefresh.addActionListener(e -> refreshDropdowns());
+        return card;
     }
 
     // ── Actions ──────────────────────────────────────────────────────────────
@@ -106,11 +165,10 @@ public class AdoptionsPanel extends JPanel {
     private void loadHistory(String from, String to) {
         try {
             List<Adoption> list;
-            if (from != null && !from.isEmpty() && to != null && !to.isEmpty()) {
+            if (from != null && !from.isEmpty() && to != null && !to.isEmpty())
                 list = adoptionDAO.getAdoptionsByDateRange(from, to);
-            } else {
+            else
                 list = adoptionDAO.getAllAdoptions();
-            }
             tableModel.setRowCount(0);
             for (Adoption a : list) {
                 tableModel.addRow(new Object[]{
@@ -125,7 +183,6 @@ public class AdoptionsPanel extends JPanel {
         try {
             cbPet.removeAllItems();
             for (Pet p : petDAO.getAvailablePets()) cbPet.addItem(p);
-
             cbAdopter.removeAllItems();
             for (Adopter a : adopterDAO.getAllAdopters()) cbAdopter.addItem(a);
         } catch (SQLException ex) { showError(ex); }
@@ -134,36 +191,28 @@ public class AdoptionsPanel extends JPanel {
     private void recordAdoption() {
         Pet     pet     = (Pet)     cbPet.getSelectedItem();
         Adopter adopter = (Adopter) cbAdopter.getSelectedItem();
+        if (pet == null)     { showWarn("No available pets. Register a pet first.");    return; }
+        if (adopter == null) { showWarn("No adopters found. Register an adopter first."); return; }
+        if (tfDate.getText().trim().isEmpty()) { showWarn("Adoption date is required."); return; }
 
-        if (pet == null) {
-            JOptionPane.showMessageDialog(this,
-                    "No available pets. Register a pet or check availability."); return;
-        }
-        if (adopter == null) {
-            JOptionPane.showMessageDialog(this,
-                    "No adopters found. Register an adopter first."); return;
-        }
-        String date = tfDate.getText().trim();
-        if (date.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Adoption date is required."); return;
-        }
-
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Record adoption of \"" + pet.getName() + "\" by \"" + adopter.getName() + "\"?\n"
-                + "This will mark the pet as no longer available.",
-                "Confirm Adoption", JOptionPane.YES_NO_OPTION);
-        if (confirm != JOptionPane.YES_OPTION) return;
+        if (JOptionPane.showConfirmDialog(this,
+                "<html>Record adoption of <b>" + pet.getName()
+                + "</b> by <b>" + adopter.getName() + "</b>?<br>"
+                + "<small style='color:gray;'>This will mark the pet as no longer available.</small></html>",
+                "Confirm Adoption", JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE) != JOptionPane.YES_OPTION) return;
 
         Adoption adoption = new Adoption();
         adoption.setPetId       (pet.getPetId());
         adoption.setAdopterId   (adopter.getAdopterId());
-        adoption.setAdoptionDate(date);
+        adoption.setAdoptionDate(tfDate.getText().trim());
         adoption.setNotes       (taNotes.getText().trim());
-
         try {
             if (adoptionDAO.recordAdoption(adoption)) {
-                JOptionPane.showMessageDialog(this, "Adoption recorded successfully!", "Success",
-                        JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                    "<html>✅ Adoption recorded successfully!<br>"
+                    + "<small>" + pet.getName() + " → " + adopter.getName() + "</small></html>",
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
                 taNotes.setText("");
                 tfDate.setText(LocalDate.now().toString());
                 loadHistory(null, null);
@@ -172,22 +221,13 @@ public class AdoptionsPanel extends JPanel {
         } catch (SQLException ex) { showError(ex); }
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private void addField(JPanel p, GridBagConstraints gbc, int row,
-                          String label, JComponent field) {
-        gbc.gridx = 0; gbc.gridy = row; p.add(new JLabel(label), gbc);
-        gbc.gridx = 1; p.add(field, gbc);
+    private void showWarn(String msg) {
+        JOptionPane.showMessageDialog(this,
+            "<html>⚠️ " + msg + "</html>", "Validation", JOptionPane.WARNING_MESSAGE);
     }
-
-    private void styleButton(JButton btn, Color bg) {
-        btn.setBackground(bg); btn.setForeground(Color.WHITE);
-        btn.setFocusPainted(false);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-    }
-
     private void showError(Exception ex) {
-        JOptionPane.showMessageDialog(this, "Database error:\n" + ex.getMessage(),
-                "Error", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(this,
+            "<html><b>Database error:</b><br>" + ex.getMessage() + "</html>",
+            "Error", JOptionPane.ERROR_MESSAGE);
     }
 }
