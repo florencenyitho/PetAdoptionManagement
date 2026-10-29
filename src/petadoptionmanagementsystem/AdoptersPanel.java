@@ -53,11 +53,12 @@ public class AdoptersPanel extends JPanel {
         tfSearch.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,
                                    "Search by name or phone…");
 
-        JButton btnSearch  = PetsPanel.actionButton("Search",   C_BLUE);
+        JButton btnSearch  = PetsPanel.iconButton("Search",   IconGenerator.search(15), C_BLUE);
         JButton btnShowAll = PetsPanel.actionButton("Show All", new Color(100, 116, 139));
 
+        bar.add(new JLabel(IconGenerator.adopters(22)));
         bar.add(new JLabel(
-            "<html><b style='color:#1e5aa0; font-size:13px;'>👤 Registered Adopters</b></html>"));
+            "<html><b style='color:#1e5aa0; font-size:13px;'>Registered Adopters</b></html>"));
         bar.add(Box.createHorizontalStrut(20));
         bar.add(tfSearch);
         bar.add(btnSearch);
@@ -142,10 +143,10 @@ public class AdoptersPanel extends JPanel {
 
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         btnRow.setOpaque(false);
-        JButton btnAdd    = PetsPanel.actionButton("➕  Register Adopter", C_GREEN);
-        JButton btnUpdate = PetsPanel.actionButton("✏️  Update",           C_BLUE);
-        JButton btnDelete = PetsPanel.actionButton("🗑️  Delete",           C_RED);
-        JButton btnClear  = PetsPanel.actionButton("✖  Clear", new Color(100, 116, 139));
+        JButton btnAdd    = PetsPanel.iconButton("Register Adopter", IconGenerator.add(16),    C_GREEN);
+        JButton btnUpdate = PetsPanel.iconButton("Update",           IconGenerator.edit(16),   C_BLUE);
+        JButton btnDelete = PetsPanel.iconButton("Delete",           IconGenerator.delete(16), C_RED);
+        JButton btnClear  = PetsPanel.iconButton("Clear",            IconGenerator.clear(16),  new Color(100, 116, 139));
         btnRow.add(btnClear); btnRow.add(btnDelete); btnRow.add(btnUpdate); btnRow.add(btnAdd);
         card.add(btnRow, BorderLayout.SOUTH);
 

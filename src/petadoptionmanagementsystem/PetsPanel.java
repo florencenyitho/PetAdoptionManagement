@@ -3,6 +3,7 @@ package petadoptionmanagementsystem;
 import com.formdev.flatlaf.FlatClientProperties;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
@@ -12,6 +13,8 @@ import java.util.List;
 
 /**
  * Pets tab — register, view, search, edit, delete pets.
+ * Supports optional pet photo: browse, preview in form, thumbnail in table,
+ * full-size popup on double-click.
  */
 public class PetsPanel extends JPanel {
 
@@ -27,14 +30,21 @@ public class PetsPanel extends JPanel {
     private DefaultTableModel tableModel;
     private JTable table;
 
+    // ── Form fields ──────────────────────────────────────────────────────────
     private final JTextField        tfName        = styledField("e.g. Buddy",    18);
     private final JTextField        tfSpecies     = styledField("e.g. Dog",      14);
     private final JTextField        tfBreed       = styledField("e.g. Labrador", 14);
     private final JTextField        tfAge         = styledField("0",               5);
     private final JComboBox<String> cbGender      = new JComboBox<>(new String[]{"Male", "Female", "Unknown"});
-    private final JTextArea         taDescription = new JTextArea(3, 24);
+    private final JTextArea         taDescription = new JTextArea(2, 20);
     private final JTextField        tfSearch      = styledField("Search by name, species or breed…", 22);
     private final JCheckBox         cbAvailable   = new JCheckBox("Available for adoption", true);
+
+    // ── Photo controls ───────────────────────────────────────────────────────
+    private String  selectedPhotoPath = null;
+    private final JLabel  photoPreview  = new JLabel();     // shows preview in form
+    private final JButton btnBrowse     = iconButton("Browse Photo", IconGenerator.add(14), C_BLUE);
+    private final JButton btnRemove     = iconButton("Remove",        IconGenerator.clear(14), new Color(150, 150, 150));
 
     private int selectedPetId = -1;
 
@@ -49,21 +59,21 @@ public class PetsPanel extends JPanel {
         loadPets(null);
     }
 
-    // ── Top search bar ───────────────────────────────────────────────────────
+    // ── Top search bar ────────────────────────────────────────────────────────
 
     private JPanel buildTopBar() {
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         bar.setBackground(C_BG);
 
-        // Placeholder only — no leading icon (FlatLaf icon requires an ImageIcon, not emoji)
         tfSearch.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,
                                    "Search by name, species or breed…");
 
-        JButton btnSearch  = actionButton("🔍 Search",  C_BLUE);
+        JButton btnSearch  = iconButton("Search",   IconGenerator.search(15), C_BLUE);
         JButton btnShowAll = actionButton("Show All", new Color(100, 116, 139));
 
+        bar.add(new JLabel(IconGenerator.pets(22)));
         bar.add(new JLabel(
-            "<html><b style='color:#1e5aa0; font-size:13px;'>🐾 Registered Pets</b></html>"));
+            "<html><b style='color:#1e5aa0; font-size:13px;'>Registered Pets</b></html>"));
         bar.add(Box.createHorizontalStrut(20));
         bar.add(tfSearch);
         bar.add(btnSearch);
@@ -74,15 +84,18 @@ public class PetsPanel extends JPanel {
         return bar;
     }
 
-    // ── Table card ───────────────────────────────────────────────────────────
+    // ── Table card ────────────────────────────────────────────────────────────
 
     private JPanel buildTableCard() {
-        String[] cols = {"ID", "Name", "Species", "Breed", "Age", "Gender", "Status", "Date Added"};
+        String[] cols = {"ID", "Photo", "Name", "Species", "Breed", "Age", "Gender", "Status", "Date Added"};
         tableModel = new DefaultTableModel(cols, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
+            @Override public Class<?> getColumnClass(int c) {
+                return c == 1 ? ImageIcon.class : Object.class;
+            }
         };
         table = new JTable(tableModel);
-        table.setRowHeight(30);
+        table.setRowHeight(PetImageUtil.THUMB_H + 6);
         table.setShowGrid(false);
         table.setIntercellSpacing(new Dimension(0, 0));
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -90,9 +103,11 @@ public class PetsPanel extends JPanel {
         table.setSelectionForeground(Color.BLACK);
 
         // Column widths
-        table.getColumnModel().getColumn(0).setMaxWidth(50);
-        table.getColumnModel().getColumn(4).setMaxWidth(55);
-        table.getColumnModel().getColumn(6).setMaxWidth(90);
+        table.getColumnModel().getColumn(0).setMaxWidth(45);
+        table.getColumnModel().getColumn(1).setMinWidth(PetImageUtil.THUMB_W + 8);
+        table.getColumnModel().getColumn(1).setMaxWidth(PetImageUtil.THUMB_W + 8);
+        table.getColumnModel().getColumn(5).setMaxWidth(50);
+        table.getColumnModel().getColumn(7).setMaxWidth(90);
 
         // Styled header
         JTableHeader header = table.getTableHeader();
@@ -101,8 +116,23 @@ public class PetsPanel extends JPanel {
         header.setForeground(Color.WHITE);
         header.setPreferredSize(new Dimension(0, 34));
 
-        // Status column — coloured badge renderer
-        table.getColumnModel().getColumn(6).setCellRenderer(new DefaultTableCellRenderer() {
+        // Photo column renderer — centres the thumbnail
+        table.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object val,
+                    boolean sel, boolean foc, int row, int col) {
+                JLabel lbl = new JLabel();
+                lbl.setHorizontalAlignment(SwingConstants.CENTER);
+                lbl.setOpaque(true);
+                lbl.setBackground(sel ? new Color(210, 234, 255)
+                        : (row % 2 == 0 ? Color.WHITE : new Color(245, 248, 252)));
+                if (val instanceof ImageIcon) lbl.setIcon((ImageIcon) val);
+                return lbl;
+            }
+        });
+
+        // Status column — coloured badge
+        table.getColumnModel().getColumn(7).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable t, Object val,
                     boolean sel, boolean foc, int row, int col) {
@@ -122,6 +152,14 @@ public class PetsPanel extends JPanel {
         table.getSelectionModel().addListSelectionListener(
                 e -> { if (!e.getValueIsAdjusting()) populateFormFromTable(); });
 
+        // Double-click a row → show full-size photo popup
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) showFullPhoto();
+            }
+        });
+
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
@@ -135,32 +173,30 @@ public class PetsPanel extends JPanel {
         return card;
     }
 
-    // ── Form card ────────────────────────────────────────────────────────────
+    // ── Form card ─────────────────────────────────────────────────────────────
 
     private JPanel buildFormCard() {
         JPanel card = card();
         card.setLayout(new BorderLayout(0, 6));
         card.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(1, 0, 0, 0, C_BORDER),
-            new EmptyBorder(12, 16, 12, 16)
+            new EmptyBorder(10, 16, 10, 16)
         ));
 
-        // Section title
-        JLabel sectionTitle = new JLabel(
+        card.add(new JLabel(
             "<html><span style='font-size:13px; font-weight:bold; color:#1e5aa0;'>"
             + "Pet Details</span>&nbsp;"
-            + "<span style='font-size:11px; color:#888;'>(* required)</span></html>");
-        card.add(sectionTitle, BorderLayout.NORTH);
+            + "<span style='font-size:11px; color:#888;'>(* required)</span></html>"),
+            BorderLayout.NORTH);
 
-        // Fields grid
+        // ── Left: fields grid ────────────────────────────────────────────────
         JPanel fields = new JPanel(new GridBagLayout());
         fields.setOpaque(false);
         GridBagConstraints g = new GridBagConstraints();
-        g.insets = new Insets(5, 8, 5, 8);
+        g.insets = new Insets(4, 8, 4, 8);
         g.anchor = GridBagConstraints.WEST;
 
-        // Description — plain JTextArea inside a scrollpane (no FlatLaf arc style on JTextArea)
-        taDescription.setRows(3);
+        taDescription.setRows(2);
         taDescription.setLineWrap(true);
         taDescription.setWrapStyleWord(true);
         taDescription.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -173,22 +209,29 @@ public class PetsPanel extends JPanel {
                             htmlLabel("Age (yrs) *"), tfAge);
         addRow(fields, g, 2, htmlLabel("Gender"),     cbGender,
                             cbAvailable,              new JLabel());
-
         g.gridx = 0; g.gridy = 3;
         fields.add(htmlLabel("Description"), g);
         g.gridx = 1; g.gridwidth = 3; g.fill = GridBagConstraints.HORIZONTAL;
         fields.add(descScroll, g);
         g.gridwidth = 1; g.fill = GridBagConstraints.NONE;
 
-        card.add(fields, BorderLayout.CENTER);
+        // ── Right: photo panel ───────────────────────────────────────────────
+        JPanel photoPanel = buildPhotoPanel();
 
-        // Action buttons
+        // ── Combined centre ──────────────────────────────────────────────────
+        JPanel centre = new JPanel(new BorderLayout(12, 0));
+        centre.setOpaque(false);
+        centre.add(fields,     BorderLayout.CENTER);
+        centre.add(photoPanel, BorderLayout.EAST);
+        card.add(centre, BorderLayout.CENTER);
+
+        // ── Action buttons ───────────────────────────────────────────────────
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         btnRow.setOpaque(false);
-        JButton btnAdd    = actionButton("➕  Register Pet", C_GREEN);
-        JButton btnUpdate = actionButton("✏️  Update",       C_BLUE);
-        JButton btnDelete = actionButton("🗑️  Delete",       C_RED);
-        JButton btnClear  = actionButton("✖  Clear",         new Color(100, 116, 139));
+        JButton btnAdd    = iconButton("Register Pet", IconGenerator.add(16),    C_GREEN);
+        JButton btnUpdate = iconButton("Update",       IconGenerator.edit(16),   C_BLUE);
+        JButton btnDelete = iconButton("Delete",       IconGenerator.delete(16), C_RED);
+        JButton btnClear  = iconButton("Clear",        IconGenerator.clear(16),  new Color(100, 116, 139));
         btnRow.add(btnClear);
         btnRow.add(btnDelete);
         btnRow.add(btnUpdate);
@@ -202,7 +245,93 @@ public class PetsPanel extends JPanel {
         return card;
     }
 
-    // ── Actions ──────────────────────────────────────────────────────────────
+    // ── Photo panel ───────────────────────────────────────────────────────────
+
+    private JPanel buildPhotoPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 6));
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(C_BORDER, 1, true),
+            new EmptyBorder(6, 6, 6, 6)
+        ));
+        panel.setPreferredSize(new Dimension(
+                PetImageUtil.PREVIEW_W + 14,
+                PetImageUtil.PREVIEW_H + 60));
+
+        // Title
+        panel.add(new JLabel(
+            "<html><span style='font-size:11px; color:#555;'>Pet Photo</span></html>",
+            SwingConstants.CENTER), BorderLayout.NORTH);
+
+        // Preview label
+        photoPreview.setPreferredSize(new Dimension(
+                PetImageUtil.PREVIEW_W, PetImageUtil.PREVIEW_H));
+        photoPreview.setHorizontalAlignment(SwingConstants.CENTER);
+        photoPreview.setVerticalAlignment(SwingConstants.CENTER);
+        photoPreview.setIcon(PetImageUtil.preview(null));
+        panel.add(photoPreview, BorderLayout.CENTER);
+
+        // Browse / Remove buttons
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+        btnRow.setOpaque(false);
+        btnRow.add(btnBrowse);
+        btnRow.add(btnRemove);
+        panel.add(btnRow, BorderLayout.SOUTH);
+
+        btnBrowse.addActionListener(e -> browsePhoto());
+        btnRemove.addActionListener(e -> removePhoto());
+        return panel;
+    }
+
+    // ── Photo actions ─────────────────────────────────────────────────────────
+
+    private void browsePhoto() {
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle("Select Pet Photo");
+        fc.setFileFilter(new FileNameExtensionFilter(
+                "Image files (JPG, PNG, GIF, BMP)", "jpg", "jpeg", "png", "gif", "bmp"));
+        fc.setAcceptAllFileFilterUsed(false);
+        if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            selectedPhotoPath = fc.getSelectedFile().getAbsolutePath();
+            photoPreview.setIcon(PetImageUtil.preview(selectedPhotoPath));
+        }
+    }
+
+    private void removePhoto() {
+        selectedPhotoPath = null;
+        photoPreview.setIcon(PetImageUtil.preview(null));
+    }
+
+    /** Shows a full-size popup of the selected row's photo. */
+    private void showFullPhoto() {
+        int row = table.getSelectedRow();
+        if (row < 0) return;
+        int petId = (int) tableModel.getValueAt(row, 0);
+        try {
+            Pet p = petDAO.getPetById(petId);
+            if (p == null) return;
+            if (p.getPhotoPath() == null || p.getPhotoPath().isBlank()) {
+                JOptionPane.showMessageDialog(this,
+                    "<html>No photo registered for <b>" + p.getName() + "</b>.</html>",
+                    "No Photo", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            ImageIcon full = PetImageUtil.full(p.getPhotoPath());
+            JLabel imgLbl  = new JLabel(full);
+            JLabel caption = new JLabel(
+                "<html><b>" + p.getName() + "</b> · " + p.getSpecies()
+                + (p.getBreed() != null && !p.getBreed().isBlank() ? " · " + p.getBreed() : "")
+                + "</html>", SwingConstants.CENTER);
+            caption.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            JPanel dlgPanel = new JPanel(new BorderLayout(0, 8));
+            dlgPanel.add(imgLbl,   BorderLayout.CENTER);
+            dlgPanel.add(caption,  BorderLayout.SOUTH);
+            JOptionPane.showMessageDialog(this, dlgPanel,
+                    "Photo — " + p.getName(), JOptionPane.PLAIN_MESSAGE);
+        } catch (SQLException ex) { showError(ex); }
+    }
+
+    // ── CRUD actions ──────────────────────────────────────────────────────────
 
     private void loadPets(String keyword) {
         try {
@@ -211,8 +340,10 @@ public class PetsPanel extends JPanel {
             tableModel.setRowCount(0);
             for (Pet p : pets) {
                 tableModel.addRow(new Object[]{
-                    p.getPetId(), p.getName(), p.getSpecies(), p.getBreed(),
-                    p.getAge(),   p.getGender(),
+                    p.getPetId(),
+                    PetImageUtil.thumbnail(p.getPhotoPath()),   // ← thumbnail
+                    p.getName(), p.getSpecies(), p.getBreed(),
+                    p.getAge(),  p.getGender(),
                     p.isAvailable() ? "Available" : "Adopted",
                     p.getDateAdded()
                 });
@@ -261,26 +392,31 @@ public class PetsPanel extends JPanel {
         } catch (SQLException ex) { showError(ex); }
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ── Form helpers ──────────────────────────────────────────────────────────
 
     private void populateFormFromTable() {
         int row = table.getSelectedRow();
         if (row < 0) return;
         selectedPetId = (int) tableModel.getValueAt(row, 0);
-        tfName    .setText((String) tableModel.getValueAt(row, 1));
-        tfSpecies .setText((String) tableModel.getValueAt(row, 2));
-        tfBreed   .setText((String) tableModel.getValueAt(row, 3));
-        tfAge     .setText(String.valueOf(tableModel.getValueAt(row, 4)));
-        cbGender  .setSelectedItem(tableModel.getValueAt(row, 5));
-        cbAvailable.setSelected("Available".equals(tableModel.getValueAt(row, 6)));
+        tfName    .setText((String) tableModel.getValueAt(row, 2));
+        tfSpecies .setText((String) tableModel.getValueAt(row, 3));
+        tfBreed   .setText((String) tableModel.getValueAt(row, 4));
+        tfAge     .setText(String.valueOf(tableModel.getValueAt(row, 5)));
+        cbGender  .setSelectedItem(tableModel.getValueAt(row, 6));
+        cbAvailable.setSelected("Available".equals(tableModel.getValueAt(row, 7)));
         try {
             Pet p = petDAO.getPetById(selectedPetId);
-            if (p != null) taDescription.setText(p.getDescription());
+            if (p != null) {
+                taDescription    .setText(p.getDescription());
+                selectedPhotoPath = p.getPhotoPath();
+                photoPreview.setIcon(PetImageUtil.preview(selectedPhotoPath));
+            }
         } catch (SQLException ex) { showError(ex); }
     }
 
     private void clearForm() {
-        selectedPetId = -1;
+        selectedPetId     = -1;
+        selectedPhotoPath = null;
         tfName       .setText("");
         tfSpecies    .setText("");
         tfBreed      .setText("");
@@ -288,6 +424,7 @@ public class PetsPanel extends JPanel {
         taDescription.setText("");
         cbGender     .setSelectedIndex(0);
         cbAvailable  .setSelected(true);
+        photoPreview .setIcon(PetImageUtil.preview(null));
         table        .clearSelection();
     }
 
@@ -300,15 +437,16 @@ public class PetsPanel extends JPanel {
         p.setGender     ((String) cbGender.getSelectedItem());
         p.setDescription(taDescription.getText().trim());
         p.setAvailable  (true);
+        p.setPhotoPath  (selectedPhotoPath);
         return p;
     }
 
     private boolean validateForm() {
-        if (tfName.getText().trim().isEmpty())   { showWarn("Pet name is required.");          return false; }
-        if (tfSpecies.getText().trim().isEmpty()) { showWarn("Species is required.");           return false; }
+        if (tfName.getText().trim().isEmpty())    { showWarn("Pet name is required.");          return false; }
+        if (tfSpecies.getText().trim().isEmpty())  { showWarn("Species is required.");           return false; }
         try {
             if (Integer.parseInt(tfAge.getText().trim()) < 0) throw new NumberFormatException();
-        } catch (NumberFormatException e)         { showWarn("Age must be a non-negative number."); return false; }
+        } catch (NumberFormatException e)          { showWarn("Age must be a non-negative number."); return false; }
         return true;
     }
 
@@ -321,7 +459,7 @@ public class PetsPanel extends JPanel {
         g.gridx = 3;                p.add(f2, g);
     }
 
-    // ── Static UI factories (shared by other panels) ─────────────────────────
+    // ── Static UI factories (shared by other panels) ──────────────────────────
 
     static JTextField styledField(String placeholder, int cols) {
         JTextField tf = new JTextField(cols);
@@ -341,6 +479,19 @@ public class PetsPanel extends JPanel {
         return btn;
     }
 
+    static JButton iconButton(String text, ImageIcon icon, Color bg) {
+        JButton btn = new JButton(text, icon);
+        btn.setBackground(bg);
+        btn.setForeground(Color.WHITE);
+        btn.setFocusPainted(false);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setIconTextGap(6);
+        btn.putClientProperty(FlatClientProperties.BUTTON_TYPE,
+                              FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+
     static JLabel htmlLabel(String text) {
         return new JLabel(
             "<html><span style='color:#444; font-size:12px;'>" + text + "</span></html>");
@@ -352,18 +503,16 @@ public class PetsPanel extends JPanel {
         return p;
     }
 
-    // ── Dialogs ──────────────────────────────────────────────────────────────
+    // ── Dialogs ───────────────────────────────────────────────────────────────
 
     private void showSuccess(String msg) {
         JOptionPane.showMessageDialog(this,
-            "<html><span style='font-size:13px;'>✅ " + msg + "</span></html>",
-            "Success", JOptionPane.INFORMATION_MESSAGE);
+            "<html>✅ " + msg + "</html>", "Success", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void showWarn(String msg) {
         JOptionPane.showMessageDialog(this,
-            "<html><span style='font-size:13px;'>⚠️ " + msg + "</span></html>",
-            "Validation", JOptionPane.WARNING_MESSAGE);
+            "<html>⚠️ " + msg + "</html>", "Validation", JOptionPane.WARNING_MESSAGE);
     }
 
     private void showError(Exception ex) {
